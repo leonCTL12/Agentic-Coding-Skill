@@ -15,7 +15,7 @@ Delta over `/implement`: same outer flow and `/tdd` loop; **pause** before decla
 
 ## Base (do not fork)
 
-1. Read and follow [`../implement/SKILL.md`](../implement/SKILL.md) for the outer flow (tdd, typecheck, `/code-review`, commit).
+1. Read and follow [`../implement/SKILL.md`](../implement/SKILL.md) for the outer flow (tdd, typecheck, `/code-review`). Skip its commit step — see **Git** below.
 2. When that flow uses `/tdd`, read and follow [`../tdd/SKILL.md`](../tdd/SKILL.md) for loop rules, seams, and anti-patterns.
 3. Keep implement/tdd's **natural work order**. This skill only inserts pauses; it does not reorder slices or batch seams differently.
 
@@ -39,6 +39,10 @@ Before writing a **test** change (any edit to a test file), stop:
 
 If one slice needs both a declaration and a test, pause twice in the order the loop naturally reaches them (usually declaration, then test), never as one combined dump of unrelated seams.
 
+## Git
+
+Do **not** commit or push unless the user explicitly asks. Leave all changes uncommitted on the working tree so the human can review the full diff first.
+
 ## Completion
 
-After the work is done, finish the rest of `/implement` (full suite once, `/code-review`, commit) with no extra gates unless a declaration or test still needs changing.
+After the work is done, finish the rest of `/implement` (full suite once, `/code-review`) with no extra gates unless a declaration or test still needs changing. Skip the commit step from `/implement` unless the user explicitly asks for it.
