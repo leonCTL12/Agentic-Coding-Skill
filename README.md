@@ -2,10 +2,11 @@
 
 Personal Cursor skills for backup and porting across machines.
 
-| Skill | Needs |
+| Skill / tool | Needs |
 | --- | --- |
 | `implement-with-caution` | [mattpocock/skills](https://github.com/mattpocock/skills) (`implement`, `tdd`, `code-review`) |
 | `arch-review` | [uv](https://docs.astral.sh/uv/) + MCP **codetree** (`mcp-server-codetree`) |
+| `no-mistakes` | [no-mistakes](https://github.com/kunchenguid/no-mistakes) + **Cursor CLI** + **acpx** (see below) |
 
 This repo does **not** vendor Matt’s skills or the MCP server — install those once per machine.
 
@@ -69,6 +70,116 @@ Use `"command": "uvx"` on PATH — do not hardcode `/Users/.../.local/bin/uvx`.
 ### 4. Reload Cursor
 
 Restart Cursor (or reload MCP servers) so `tree_sitter` tools show up.
+
+### 5. no-mistakes (gate pipeline)
+
+Install [no-mistakes](https://github.com/kunchenguid/no-mistakes) with the upstream one-liner (or any other method from its docs). The upstream README covers the binary; these are the **extra prerequisites** it does not spell out for a Cursor-backed setup.
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/kunchenguid/no-mistakes/main/docs/install.sh | sh
+no-mistakes --version
+```
+
+#### Cursor CLI (`agent`)
+
+Modern Cursor installs the binary as `agent` (not only `cursor-agent`). no-mistakes defaults to `cursor-agent acp`, so override that in config (step 3 below).
+
+```bash
+curl https://cursor.com/install -fsSL | bash
+
+# zsh — ensure ~/.local/bin is on PATH
+echo 'export PATH="$HOME/.local/bin:$PATH"' >> ~/.zshrc
+source ~/.zshrc
+
+agent --version
+agent acp --help   # should not error
+agent login
+```
+
+#### acpx (ACP bridge)
+
+Requires Node.js **22.13+**:
+
+```bash
+node --version
+npm install -g acpx@latest
+acpx --version
+```
+
+#### Point no-mistakes at Cursor
+
+Edit `~/.no-mistakes/config.yaml`:
+
+```yaml
+agent: cursor
+# only if acpx isn't on PATH:
+# acpx_path: /path/to/acpx
+
+acp_registry_overrides:
+  cursor: agent acp
+```
+
+If `agent` lives outside PATH, use the full path:
+
+```yaml
+acp_registry_overrides:
+  cursor: /Users/you/.local/bin/agent acp
+```
+
+You can leave `agent: auto` instead of `agent: cursor` once both binaries are installed — `auto` picks Cursor when it is available.
+
+#### Verify
+
+```bash
+no-mistakes doctor
+```
+
+You want `cursor` and `acpx` reported as found, and gate validation passing.
+
+#### Optional: GitHub CLI (push / PR / CI)
+
+The full pipeline also pushes and opens a PR. Without `gh`, local steps (review, test, lint) can still run, but push/PR/CI will fail.
+
+```bash
+brew install gh
+gh auth login
+```
+
+#### Per-project setup
+
+Before running the gate on a repository, initialize it once from that repo’s root:
+
+```bash
+cd /path/to/your/project
+no-mistakes init
+```
+
+#### Recover after a failed run
+
+A failed pipeline run can leave the branch in `pipeline_owned` state. Before committing new work:
+
+```bash
+no-mistakes axi sync --recover
+```
+
+Then re-run validation on your feature branch:
+
+```bash
+git checkout feat/your-branch
+no-mistakes axi run --intent "<what you set out to accomplish>"
+```
+
+#### Alternative agents
+
+If you prefer not to use the Cursor CLI, install one of these and set `agent:` explicitly in `~/.no-mistakes/config.yaml`:
+
+| Agent | Config | Install |
+| --- | --- | --- |
+| Claude Code | `agent: claude` | [Claude Code CLI](https://docs.anthropic.com/en/docs/claude-code) |
+| Codex | `agent: codex` | [OpenAI Codex CLI](https://github.com/openai/codex) |
+| Copilot | `agent: copilot` | `gh extension install github/copilot` |
+
+Run `no-mistakes doctor` again after switching.
 
 ## Updating after you edit skills elsewhere
 
