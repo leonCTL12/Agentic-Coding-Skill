@@ -15,8 +15,13 @@ mkdir -p "${AGENTS_SKILLS}" "${CURSOR_SKILLS}" "$(dirname "${MCP_JSON}")"
 echo "==> Installing implement-with-caution → ${AGENTS_SKILLS}/"
 cp -R "${ROOT}/skills/implement-with-caution" "${AGENTS_SKILLS}/"
 
+ARCH_REVIEW_SRC="${ROOT}/skills/arch-review"
+if [[ ! -f "${ARCH_REVIEW_SRC}/SKILL.md" || ! -f "${ARCH_REVIEW_SRC}/TEMPLATE.html" ]]; then
+  echo "    [error] arch-review needs SKILL.md and TEMPLATE.html in ${ARCH_REVIEW_SRC}" >&2
+  exit 1
+fi
 echo "==> Installing arch-review → ${CURSOR_SKILLS}/"
-cp -R "${ROOT}/skills/arch-review" "${CURSOR_SKILLS}/"
+cp -R "${ARCH_REVIEW_SRC}" "${CURSOR_SKILLS}/"
 
 echo
 echo "==> Checking prerequisites"

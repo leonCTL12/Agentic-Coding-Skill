@@ -1,0 +1,408 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Alert API — architecture review</title>
+  <style>
+    :root {
+      --bg: #fafafa;
+      --bg-elevated: #fff;
+      --text: #1a1a1a;
+      --text-secondary: #555;
+      --text-muted: #888;
+      --border: #ddd;
+      --accent: #0969da;
+      --danger: #cf222e;
+      --warning: #9a6700;
+      --layer-api: #0969da;
+      --layer-app: #8250df;
+      --layer-persist: #1a7f37;
+      --layer-domain: #bf8700;
+      --layer-contracts: #0598bc;
+      --font: system-ui, -apple-system, "Segoe UI", sans-serif;
+      --mono: ui-monospace, "SF Mono", Menlo, monospace;
+    }
+    @media (prefers-color-scheme: dark) {
+      :root {
+        --bg: #0d1117;
+        --bg-elevated: #161b22;
+        --text: #e6edf3;
+        --text-secondary: #8b949e;
+        --text-muted: #6e7681;
+        --border: #30363d;
+        --accent: #58a6ff;
+        --danger: #f85149;
+        --warning: #d29922;
+      }
+    }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      padding: 24px 32px 48px;
+      font-family: var(--font);
+      font-size: 14px;
+      line-height: 1.5;
+      color: var(--text);
+      background: var(--bg);
+      max-width: 960px;
+    }
+    h1 { font-size: 1.5rem; font-weight: 600; margin: 0 0 4px; }
+    h2 { font-size: 1.1rem; font-weight: 600; margin: 32px 0 12px; }
+    .meta { color: var(--text-secondary); margin-bottom: 24px; }
+    .section-head { display: flex; align-items: center; justify-content: space-between; gap: 12px; flex-wrap: wrap; }
+    .layer { margin-bottom: 8px; border: 1px solid var(--border); border-radius: 6px; background: var(--bg-elevated); }
+    .layer > summary {
+      padding: 10px 14px;
+      cursor: pointer;
+      font-weight: 600;
+      list-style: none;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+    .layer > summary::-webkit-details-marker { display: none; }
+    .layer > summary::before { content: "▸"; color: var(--text-muted); }
+    .layer[open] > summary::before { content: "▾"; }
+    .swatch { width: 10px; height: 10px; border-radius: 2px; flex-shrink: 0; }
+    .layer-count { color: var(--text-muted); font-weight: 400; font-size: 13px; }
+    .layer-body { padding: 0 14px 12px; }
+    .type { margin-top: 6px; border-left: 3px solid var(--border); padding-left: 10px; }
+    .type > summary { cursor: pointer; font-weight: 500; padding: 4px 0; list-style: none; }
+    .type > summary::-webkit-details-marker { display: none; }
+    .type-note { color: var(--text-muted); font-weight: 400; font-size: 12px; margin-left: 8px; }
+    .members { margin: 4px 0 8px; padding: 0; list-style: none; }
+    .members li { font-family: var(--mono); font-size: 12px; color: var(--text-secondary); padding: 2px 0; }
+    .hint { font-size: 13px; color: var(--text-muted); margin-bottom: 8px; }
+    .graph-wrap { overflow: auto; max-height: 480px; border: 1px solid var(--border); border-radius: 6px; background: var(--bg-elevated); }
+    .graph-wrap svg { display: block; }
+    .graph-node { cursor: pointer; }
+    .graph-node rect { transition: fill 0.15s, stroke 0.15s; }
+    .graph-node text { font-family: var(--font); font-size: 12px; pointer-events: none; }
+    select {
+      font: inherit;
+      padding: 4px 8px;
+      border: 1px solid var(--border);
+      border-radius: 4px;
+      background: var(--bg-elevated);
+      color: var(--text);
+    }
+    table { width: 100%; border-collapse: collapse; font-size: 13px; }
+    th, td { text-align: left; padding: 8px 12px; border-bottom: 1px solid var(--border); }
+    th { font-weight: 600; color: var(--text-secondary); }
+    tr.risk-high { background: color-mix(in srgb, var(--danger) 8%, transparent); }
+    tr.risk-medium { background: color-mix(in srgb, var(--warning) 8%, transparent); }
+    code { font-family: var(--mono); font-size: 12px; }
+    .footer { margin-top: 48px; font-size: 12px; color: var(--text-muted); }
+  </style>
+</head>
+<body>
+  <header>
+    <h1 id="title">Alert API — architecture review</h1>
+    <p class="meta">Reviewed: <code id="target">src/Risksis.AlertApi</code></p>
+  </header>
+
+  <section id="layers">
+    <h2>Layer explorer</h2>
+    <div id="layer-explorer"></div>
+  </section>
+
+  <section id="graph-section">
+    <div class="section-head">
+      <h2 style="margin:0">Contract graph</h2>
+      <label>
+        <select id="layer-filter" aria-label="Filter by layer">
+          <option value="">All wired types</option>
+        </select>
+      </label>
+    </div>
+    <p class="hint" id="graph-hint">Click a node to highlight upstream dependencies and downstream dependents.</p>
+    <div class="graph-wrap">
+      <svg id="graph" width="320" height="200"></svg>
+    </div>
+  </section>
+
+  <section id="blast">
+    <h2>Blast radius</h2>
+    <table>
+      <thead>
+        <tr><th>If changed</th><th>Affected</th><th>Risk</th><th>Note</th></tr>
+      </thead>
+      <tbody id="blast-body"></tbody>
+    </table>
+  </section>
+
+  <p class="footer">Generated by /arch-review · open this file in any browser · no build step</p>
+
+  <!-- Replace ARCH_REVIEW with AST findings from the review target -->
+  <script id="arch-data" type="application/json">
+  {
+    "title": "Alert API — architecture review",
+    "target": "src/Risksis.AlertApi",
+    "types": [
+      { "id": "AlertsController", "name": "AlertsController", "layer": "API", "kind": "class", "members": ["+Create(...) Task<ActionResult<Alert>>", "+GetById(Guid) Task<ActionResult<Alert>>", "+Acknowledge(...)", "+Resolve(...)", "+Escalate(...)"] },
+      { "id": "DetectionsController", "name": "DetectionsController", "layer": "API", "kind": "class", "members": ["+Ingest(...) Task<ActionResult<Alert>>"] },
+      { "id": "IAlertCreationService", "name": "IAlertCreationService", "layer": "Application", "kind": "interface", "members": ["+CreateOpenAlert(...) Alert"] },
+      { "id": "AlertCreationService", "name": "AlertCreationService", "layer": "Application", "kind": "class", "members": ["+CreateOpenAlert(...) Alert"] },
+      { "id": "IAlertRepository", "name": "IAlertRepository", "layer": "Persistence", "kind": "interface", "members": ["+AddAsync(Alert) Task", "+GetByIdAsync(Guid) Task", "+UpdateAsync(Alert) Task", "+ListAsync(...) Task"] },
+      { "id": "InMemoryAlertRepository", "name": "InMemoryAlertRepository", "layer": "Persistence", "kind": "class", "members": ["+AddAsync ...", "+GetByIdAsync ...", "+UpdateAsync ..."] },
+      { "id": "Alert", "name": "Alert", "layer": "Domain", "kind": "class", "members": ["+Id: Guid", "+Status: AlertStatus", "+Severity: AlertSeverity", "+Type: AlertType"] },
+      { "id": "AlertStatus", "name": "AlertStatus", "layer": "Domain", "kind": "enum", "members": ["Open", "Acknowledged", "Escalated", "Resolved"] },
+      { "id": "AlertSeverity", "name": "AlertSeverity", "layer": "Domain", "kind": "enum", "members": ["Low", "Medium", "High", "Critical"] },
+      { "id": "CreateAlertRequest", "name": "CreateAlertRequest", "layer": "Contracts", "kind": "record", "members": ["+SiteId", "+DeviceId", "+Type", "+Severity"] },
+      { "id": "CreateDetectionRequest", "name": "CreateDetectionRequest", "layer": "Contracts", "kind": "record", "members": ["+Metadata"], "note": "extends CreateAlertRequest" }
+    ],
+    "edges": [
+      { "from": "AlertsController", "to": "IAlertRepository", "relationship": "uses" },
+      { "from": "AlertsController", "to": "IAlertCreationService", "relationship": "uses" },
+      { "from": "DetectionsController", "to": "IAlertRepository", "relationship": "uses" },
+      { "from": "DetectionsController", "to": "IAlertCreationService", "relationship": "uses" },
+      { "from": "AlertCreationService", "to": "IAlertCreationService", "relationship": "implements" },
+      { "from": "InMemoryAlertRepository", "to": "IAlertRepository", "relationship": "implements" },
+      { "from": "IAlertRepository", "to": "Alert", "relationship": "uses" },
+      { "from": "IAlertCreationService", "to": "Alert", "relationship": "uses" }
+    ],
+    "blastRadius": [
+      { "ifChanged": "IAlertRepository", "affected": ["AlertsController", "DetectionsController", "InMemoryAlertRepository"], "risk": "high", "note": "Both controllers inject the interface directly" },
+      { "ifChanged": "IAlertCreationService", "affected": ["AlertsController", "DetectionsController", "AlertCreationService"], "risk": "high" },
+      { "ifChanged": "Alert", "affected": ["IAlertRepository", "IAlertCreationService"], "risk": "medium", "note": "Entity shape flows through persistence and services" }
+    ]
+  }
+  </script>
+
+  <script>
+    const LAYER_ORDER = ["API", "Application", "Persistence", "Domain", "Contracts"];
+    const LAYER_COLOR = {
+      API: "var(--layer-api)",
+      Application: "var(--layer-app)",
+      Persistence: "var(--layer-persist)",
+      Domain: "var(--layer-domain)",
+      Contracts: "var(--layer-contracts)",
+    };
+    const MEMBER_CAP = 12;
+
+    const review = JSON.parse(document.getElementById("arch-data").textContent);
+    document.getElementById("title").textContent = review.title;
+    document.title = review.title;
+    document.getElementById("target").textContent = review.target;
+
+    function typesByLayer(layer) {
+      return review.types.filter((t) => t.layer === layer);
+    }
+
+    function renderMembers(members) {
+      const shown = members.slice(0, MEMBER_CAP);
+      const extra = members.length - shown.length;
+      let html = shown.map((m) => `<li>${escapeHtml(m)}</li>`).join("");
+      if (extra > 0) html += `<li>+${extra} more…</li>`;
+      return `<ul class="members">${html}</ul>`;
+    }
+
+    function escapeHtml(s) {
+      return s.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
+    }
+
+    function renderLayers() {
+      const root = document.getElementById("layer-explorer");
+      for (const layer of LAYER_ORDER) {
+        const types = typesByLayer(layer);
+        if (types.length === 0) continue;
+        const open = layer === "API" ? " open" : "";
+        let inner = "";
+        for (const t of types) {
+          const note = t.note ? `<span class="type-note">${escapeHtml(t.note)}</span>` : "";
+          inner += `<details class="type"><summary>${escapeHtml(t.name)}${note}</summary>${renderMembers(t.members)}</details>`;
+        }
+        root.innerHTML += `
+          <details class="layer"${open}>
+            <summary>
+              <span class="swatch" style="background:${LAYER_COLOR[layer]}"></span>
+              ${layer}
+              <span class="layer-count">${types.length}</span>
+            </summary>
+            <div class="layer-body">${inner}</div>
+          </details>`;
+      }
+    }
+
+    function renderBlast() {
+      const tbody = document.getElementById("blast-body");
+      for (const row of review.blastRadius) {
+        const tr = document.createElement("tr");
+        if (row.risk === "high") tr.className = "risk-high";
+        if (row.risk === "medium") tr.className = "risk-medium";
+        tr.innerHTML = `
+          <td><code>${escapeHtml(row.ifChanged)}</code></td>
+          <td>${escapeHtml(row.affected.join(", "))}</td>
+          <td>${escapeHtml(row.risk)}</td>
+          <td>${escapeHtml(row.note || "")}</td>`;
+        tbody.appendChild(tr);
+      }
+    }
+
+    function layoutDAG(nodeIds, edges) {
+      const rank = new Map(nodeIds.map((id) => [id, 0]));
+      for (let i = 0; i < nodeIds.length + 2; i++) {
+        for (const e of edges) {
+          rank.set(e.to, Math.max(rank.get(e.to) ?? 0, (rank.get(e.from) ?? 0) + 1));
+        }
+      }
+      const byRank = new Map();
+      for (const id of nodeIds) {
+        const r = rank.get(id) ?? 0;
+        if (!byRank.has(r)) byRank.set(r, []);
+        byRank.get(r).push(id);
+      }
+      const NW = 168, NH = 36, RG = 56, NG = 32;
+      const pos = new Map();
+      let width = 0, height = 0;
+      for (const r of [...byRank.keys()].sort((a, b) => a - b)) {
+        const ids = byRank.get(r);
+        const rowW = ids.length * NW + Math.max(0, ids.length - 1) * NG;
+        width = Math.max(width, rowW);
+        ids.forEach((id, i) => {
+          const x = i * (NW + NG) + (width - rowW) / 2;
+          const y = r * (NH + RG);
+          pos.set(id, { x, y, w: NW, h: NH });
+          height = Math.max(height, y + NH);
+        });
+      }
+      return { pos, width: Math.max(width, 320), height: height + RG };
+    }
+
+    function collectReverse(start, edges) {
+      const out = new Set();
+      const q = [start];
+      while (q.length) {
+        const cur = q.shift();
+        for (const e of edges) {
+          if (e.to === cur && !out.has(e.from)) { out.add(e.from); q.push(e.from); }
+        }
+      }
+      return out;
+    }
+
+    function collectForward(start, edges) {
+      const out = new Set();
+      const q = [start];
+      while (q.length) {
+        const cur = q.shift();
+        for (const e of edges) {
+          if (e.from === cur && !out.has(e.to)) { out.add(e.to); q.push(e.to); }
+        }
+      }
+      return out;
+    }
+
+    let selectedId = null;
+    let layerFilter = "";
+
+    function visibleGraph() {
+      let types = review.types;
+      if (!layerFilter) {
+        types = types.filter((t) => review.edges.some((e) => e.from === t.id || e.to === t.id));
+      } else {
+        types = types.filter((t) => t.layer === layerFilter);
+      }
+      const ids = new Set(types.map((t) => t.id));
+      const edges = review.edges.filter((e) => ids.has(e.from) && ids.has(e.to));
+      return { types, edges };
+    }
+
+    function renderGraph() {
+      const { types, edges } = visibleGraph();
+      const svg = document.getElementById("graph");
+      const typeById = new Map(review.types.map((t) => [t.id, t]));
+      const nodeIds = types.map((t) => t.id);
+      const { pos, width, height } = layoutDAG(nodeIds, edges);
+      svg.setAttribute("width", width);
+      svg.setAttribute("height", height);
+      svg.innerHTML = "";
+
+      const defs = document.createElementNS("http://www.w3.org/2000/svg", "defs");
+      defs.innerHTML = `<marker id="arrow" markerWidth="8" markerHeight="8" refX="6" refY="4" orient="auto"><path d="M0,0 L8,4 L0,8 Z" fill="var(--text-muted)"/></marker>`;
+      svg.appendChild(defs);
+
+      let highlight = null;
+      if (selectedId && nodeIds.includes(selectedId)) {
+        const up = collectReverse(selectedId, review.edges);
+        const down = collectForward(selectedId, review.edges);
+        highlight = new Set([selectedId, ...up, ...down]);
+        document.getElementById("graph-hint").textContent =
+          `Selected: ${selectedId} · upstream + downstream highlighted (click again to clear)`;
+      } else {
+        document.getElementById("graph-hint").textContent =
+          "Click a node to highlight upstream dependencies and downstream dependents.";
+      }
+
+      for (const e of edges) {
+        const a = pos.get(e.from), b = pos.get(e.to);
+        if (!a || !b) continue;
+        const line = document.createElementNS("http://www.w3.org/2000/svg", "line");
+        line.setAttribute("x1", a.x + a.w / 2);
+        line.setAttribute("y1", a.y + a.h);
+        line.setAttribute("x2", b.x + b.w / 2);
+        line.setAttribute("y2", b.y);
+        const lit = highlight && highlight.has(e.from) && highlight.has(e.to);
+        line.setAttribute("stroke", lit ? "var(--accent)" : "var(--border)");
+        line.setAttribute("stroke-width", lit ? "2" : "1.5");
+        line.setAttribute("marker-end", "url(#arrow)");
+        svg.appendChild(line);
+      }
+
+      for (const id of nodeIds) {
+        const p = pos.get(id);
+        const t = typeById.get(id);
+        const g = document.createElementNS("http://www.w3.org/2000/svg", "g");
+        g.classList.add("graph-node");
+        const lit = !highlight || highlight.has(id);
+        const sel = id === selectedId;
+        const rect = document.createElementNS("http://www.w3.org/2000/svg", "rect");
+        rect.setAttribute("x", p.x);
+        rect.setAttribute("y", p.y);
+        rect.setAttribute("width", p.w);
+        rect.setAttribute("height", p.h);
+        rect.setAttribute("rx", "4");
+        rect.setAttribute("fill", sel ? "color-mix(in srgb, var(--accent) 15%, var(--bg-elevated))" : "var(--bg-elevated)");
+        rect.setAttribute("stroke", lit ? (sel ? "var(--accent)" : LAYER_COLOR[t.layer]) : "var(--border)");
+        rect.setAttribute("stroke-width", sel ? "2" : "1");
+        g.appendChild(rect);
+        const text = document.createElementNS("http://www.w3.org/2000/svg", "text");
+        const label = t.name.length > 22 ? t.name.slice(0, 20) + "…" : t.name;
+        text.setAttribute("x", p.x + p.w / 2);
+        text.setAttribute("y", p.y + 22);
+        text.setAttribute("text-anchor", "middle");
+        text.setAttribute("fill", lit ? "var(--text)" : "var(--text-muted)");
+        text.textContent = label;
+        g.appendChild(text);
+        g.addEventListener("click", () => {
+          selectedId = selectedId === id ? null : id;
+          renderGraph();
+        });
+        svg.appendChild(g);
+      }
+    }
+
+    function initFilter() {
+      const sel = document.getElementById("layer-filter");
+      for (const layer of LAYER_ORDER) {
+        if (typesByLayer(layer).length === 0) continue;
+        const opt = document.createElement("option");
+        opt.value = layer;
+        opt.textContent = layer;
+        sel.appendChild(opt);
+      }
+      sel.addEventListener("change", () => {
+        layerFilter = sel.value;
+        selectedId = null;
+        renderGraph();
+      });
+    }
+
+    renderLayers();
+    renderBlast();
+    initFilter();
+    renderGraph();
+  </script>
+</body>
+</html>

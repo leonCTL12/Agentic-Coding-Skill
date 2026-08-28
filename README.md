@@ -5,7 +5,7 @@ Personal Cursor skills for backup and porting across machines.
 | Skill / tool | Needs |
 | --- | --- |
 | `implement-with-caution` | [mattpocock/skills](https://github.com/mattpocock/skills) (`implement`, `tdd`, `code-review`) |
-| `arch-review` | [uv](https://docs.astral.sh/uv/) + MCP **codetree** with C# overlay (`codetree-csharp/`) |
+| `arch-review` | [uv](https://docs.astral.sh/uv/) + MCP **codetree** with C# overlay (`codetree-csharp/`) · writes static HTML via `TEMPLATE.html` |
 | `no-mistakes` | [no-mistakes](https://github.com/kunchenguid/no-mistakes) + **Cursor CLI** + **acpx** (see below) |
 
 This repo does **not** vendor Matt’s skills — install those once per machine. It **does** vendor the C# delta for [ThinkyMiner/codeTree](https://github.com/ThinkyMiner/codeTree) (PyPI has no `.cs` support).
@@ -44,7 +44,7 @@ chmod +x ./install.sh ./codetree-csharp/install-codetree.sh
 That copies:
 
 - `implement-with-caution` → `~/.agents/skills/`
-- `arch-review` → `~/.cursor/skills/`
+- `arch-review` → `~/.cursor/skills/` (`SKILL.md` + `TEMPLATE.html`)
 - Bootstraps C#-capable codetree → `~/.local/src/codeTree/` (pinned upstream + overlay)
 - Writes `~/.cursor/mcp.json` `tree_sitter` entry (portable `${userHome}` path):
 
@@ -61,6 +61,8 @@ That copies:
 The launcher uses each Cursor window’s cwd as `--root` (not `~/.cursor`). Do **not** use PyPI `uvx mcp-server-codetree` for C# repos — upstream skips `.cs` files.
 
 See `codetree-csharp/README.md` for upgrade steps and verification (`index_status` / `.cs` count > 0 after MCP reload).
+
+`/arch-review` outputs markdown plus a self-contained HTML report (default `docs/architecture/<target>-arch-review.html` in the project under review). The agent copies `~/.cursor/skills/arch-review/TEMPLATE.html` and embeds AST findings as JSON — no Mermaid, no Canvas, no npm build.
 
 ### 4. Reload Cursor
 
@@ -192,6 +194,7 @@ git pull && ./install.sh
 skills/
   implement-with-caution/SKILL.md
   arch-review/SKILL.md
+  arch-review/TEMPLATE.html
 codetree-csharp/          # C# overlay + bootstrap for ThinkyMiner/codeTree
   PIN, patches/, overlay/, install-codetree.sh, run-mcp.sh, README.md
 templates/
