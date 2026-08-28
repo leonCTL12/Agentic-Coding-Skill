@@ -1,14 +1,7 @@
 {
   "mcpServers": {
     "tree_sitter": {
-      "command": "uvx",
-      "args": [
-        "--from",
-        "mcp-server-codetree",
-        "codetree",
-        "--root",
-        "${workspaceFolder}"
-      ]
+      "command": "${userHome}/.local/src/codeTree/run-mcp.sh"
     }
   }
 }

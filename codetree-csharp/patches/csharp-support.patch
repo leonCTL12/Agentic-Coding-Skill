@@ -1,0 +1,44 @@
+diff --git a/pyproject.toml b/pyproject.toml
+index 5b02f76..b2452b4 100644
+--- a/pyproject.toml
++++ b/pyproject.toml
+@@ -38,6 +38,7 @@ dependencies = [
+     "tree-sitter-cpp>=0.23.0",
+     "tree-sitter-ruby>=0.23.0",
+     "tree-sitter-kotlin>=0.23.0",
++    "tree-sitter-c-sharp>=0.23.1",
+     "fastmcp>=2.0.0",
+ ]
+ 
+diff --git a/src/codetree/indexer.py b/src/codetree/indexer.py
+index 0fb2256..f8e8244 100644
+--- a/src/codetree/indexer.py
++++ b/src/codetree/indexer.py
+@@ -54,6 +54,7 @@ class Indexer:
+         "node_modules", ".tox", ".mypy_cache",
+         ".pytest_cache", "dist", "build",
+         ".codetree",
++        "bin", "obj",
+     }
+ 
+     def _should_skip(self, path: Path) -> bool:
+diff --git a/src/codetree/registry.py b/src/codetree/registry.py
+index 68df33d..7dac111 100644
+--- a/src/codetree/registry.py
++++ b/src/codetree/registry.py
+@@ -10,6 +10,7 @@ from .languages.c import CPlugin
+ from .languages.cpp import CppPlugin
+ from .languages.ruby import RubyPlugin
+ from .languages.kotlin import KotlinPlugin
++from .languages.csharp import CSharpPlugin
+ 
+ # All supported file extensions mapped to plugin instances.
+ # To add a new language: import its plugin and add its extensions here.
+@@ -32,6 +33,7 @@ PLUGINS: dict[str, LanguagePlugin] = {
+     ".rb":   RubyPlugin(),
+     ".kt":   KotlinPlugin(),
+     ".kts":  KotlinPlugin(),
++    ".cs":   CSharpPlugin(),
+ }
+ 
+ 

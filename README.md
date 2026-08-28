@@ -5,10 +5,10 @@ Personal Cursor skills for backup and porting across machines.
 | Skill / tool | Needs |
 | --- | --- |
 | `implement-with-caution` | [mattpocock/skills](https://github.com/mattpocock/skills) (`implement`, `tdd`, `code-review`) |
-| `arch-review` | [uv](https://docs.astral.sh/uv/) + MCP **codetree** (`mcp-server-codetree`) |
+| `arch-review` | [uv](https://docs.astral.sh/uv/) + MCP **codetree** with C# overlay (`codetree-csharp/`) |
 | `no-mistakes` | [no-mistakes](https://github.com/kunchenguid/no-mistakes) + **Cursor CLI** + **acpx** (see below) |
 
-This repo does **not** vendor Matt’s skills or the MCP server — install those once per machine.
+This repo does **not** vendor Matt’s skills — install those once per machine. It **does** vendor the C# delta for [ThinkyMiner/codeTree](https://github.com/ThinkyMiner/codeTree) (PyPI has no `.cs` support).
 
 ## New machine setup
 
@@ -34,10 +34,10 @@ npx skills@latest add mattpocock/skills
 Pick at least: `setup-matt-pocock-skills`, `implement`, `tdd`, `code-review`.  
 They should land under `~/.agents/skills/` so sibling paths from `implement-with-caution` resolve.
 
-### 3. Install this repo’s skills + MCP hint
+### 3. Install this repo’s skills + C# codetree MCP
 
 ```bash
-chmod +x ./install.sh
+chmod +x ./install.sh ./codetree-csharp/install-codetree.sh
 ./install.sh
 ```
 
@@ -45,27 +45,22 @@ That copies:
 
 - `implement-with-caution` → `~/.agents/skills/`
 - `arch-review` → `~/.cursor/skills/`
-
-And ensures `~/.cursor/mcp.json` includes (or prompts you to merge) the portable snippet in `templates/mcp.json`:
+- Bootstraps C#-capable codetree → `~/.local/src/codeTree/` (pinned upstream + overlay)
+- Writes `~/.cursor/mcp.json` `tree_sitter` entry (portable `${userHome}` path):
 
 ```json
 {
   "mcpServers": {
     "tree_sitter": {
-      "command": "uvx",
-      "args": [
-        "--from",
-        "mcp-server-codetree",
-        "codetree",
-        "--root",
-        "${workspaceFolder}"
-      ]
+      "command": "${userHome}/.local/src/codeTree/run-mcp.sh"
     }
   }
 }
 ```
 
-Use `"command": "uvx"` on PATH — do not hardcode `/Users/.../.local/bin/uvx`.
+The launcher uses each Cursor window’s cwd as `--root` (not `~/.cursor`). Do **not** use PyPI `uvx mcp-server-codetree` for C# repos — upstream skips `.cs` files.
+
+See `codetree-csharp/README.md` for upgrade steps and verification (`index_status` / `.cs` count > 0 after MCP reload).
 
 ### 4. Reload Cursor
 
@@ -197,6 +192,8 @@ git pull && ./install.sh
 skills/
   implement-with-caution/SKILL.md
   arch-review/SKILL.md
+codetree-csharp/          # C# overlay + bootstrap for ThinkyMiner/codeTree
+  PIN, patches/, overlay/, install-codetree.sh, run-mcp.sh, README.md
 templates/
   mcp.json
 install.sh

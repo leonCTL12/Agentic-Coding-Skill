@@ -8,7 +8,7 @@ description: Perform a high-level architectural dependency review and output a u
 ## Prerequisites
 
 - [uv](https://docs.astral.sh/uv/) installed (`uvx` on PATH).
-- Cursor MCP server `tree_sitter` running **codetree** (`mcp-server-codetree`). See repo `templates/mcp.json`.
+- Cursor MCP server `tree_sitter` running **codetree with C# support** (this toolchain’s `codetree-csharp/` installer — PyPI `mcp-server-codetree` skips `.cs`). See `templates/mcp.json`.
 - If `tree_sitter` tools are unavailable, stop and tell the user to finish MCP setup — do not fake an AST review.
 
 When invoked, execute a high-level structural review on the requested target codebase or folder path.

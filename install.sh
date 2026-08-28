@@ -7,6 +7,8 @@ AGENTS_SKILLS="${HOME}/.agents/skills"
 CURSOR_SKILLS="${HOME}/.cursor/skills"
 MCP_JSON="${HOME}/.cursor/mcp.json"
 TEMPLATE_MCP="${ROOT}/templates/mcp.json"
+CODETREE_INSTALL="${ROOT}/codetree-csharp/install-codetree.sh"
+CODETREE_LAUNCHER="${HOME}/.local/src/codeTree/run-mcp.sh"
 
 mkdir -p "${AGENTS_SKILLS}" "${CURSOR_SKILLS}" "$(dirname "${MCP_JSON}")"
 
@@ -19,12 +21,13 @@ cp -R "${ROOT}/skills/arch-review" "${CURSOR_SKILLS}/"
 echo
 echo "==> Checking prerequisites"
 
-if ! command -v uvx >/dev/null 2>&1; then
-  echo "    [missing] uvx — install uv:"
+if ! command -v uv >/dev/null 2>&1 && [[ ! -x "${HOME}/.local/bin/uv" ]]; then
+  echo "    [missing] uv — install uv:"
   echo "      curl -LsSf https://astral.sh/uv/install.sh | sh"
-  echo "    Then restart the shell so uvx is on PATH."
+  echo "    Then restart the shell so uv is on PATH."
 else
-  echo "    [ok] uvx: $(command -v uvx) ($(uvx --version 2>/dev/null | head -1))"
+  UV_BIN="$(command -v uv 2>/dev/null || echo "${HOME}/.local/bin/uv")"
+  echo "    [ok] uv: ${UV_BIN} ($("${UV_BIN}" --version 2>/dev/null | head -1))"
 fi
 
 if [[ -f "${AGENTS_SKILLS}/implement/SKILL.md" && -f "${AGENTS_SKILLS}/tdd/SKILL.md" ]]; then
@@ -35,20 +38,57 @@ else
   echo "    Include at least: setup-matt-pocock-skills, implement, tdd, code-review"
 fi
 
-if [[ -f "${MCP_JSON}" ]] && grep -q 'mcp-server-codetree' "${MCP_JSON}" 2>/dev/null; then
-  echo "    [ok] ${MCP_JSON} already mentions mcp-server-codetree"
+echo
+echo "==> Installing C#-capable codetree MCP server"
+if [[ ! -x "${CODETREE_INSTALL}" ]]; then
+  echo "    [error] missing ${CODETREE_INSTALL}" >&2
+  exit 1
+fi
+"${CODETREE_INSTALL}"
+
+echo
+echo "==> Configuring global Cursor MCP (tree_sitter)"
+export TEMPLATE_MCP
+python3 <<'PY'
+import json
+import os
+
+mcp_path = os.path.expanduser("~/.cursor/mcp.json")
+
+with open(os.environ["TEMPLATE_MCP"]) as f:
+    template = json.load(f)
+
+tree_sitter = template["mcpServers"]["tree_sitter"]
+
+if os.path.isfile(mcp_path):
+    with open(mcp_path) as f:
+        data = json.load(f)
+else:
+    data = {}
+
+servers = data.setdefault("mcpServers", {})
+prev = servers.get("tree_sitter")
+servers["tree_sitter"] = tree_sitter
+
+os.makedirs(os.path.dirname(mcp_path), exist_ok=True)
+with open(mcp_path, "w") as f:
+    json.dump(data, f, indent=2)
+    f.write("\n")
+
+if prev != tree_sitter:
+    print(f"    Updated tree_sitter in {mcp_path}")
+    print(f"    command: {tree_sitter['command']}")
+else:
+    print(f"    [ok] tree_sitter already configured in {mcp_path}")
+PY
+
+if [[ -x "${CODETREE_LAUNCHER}" ]]; then
+  echo "    [ok] launcher present: ${CODETREE_LAUNCHER}"
 else
-  echo "    [todo] merge tree_sitter MCP into ${MCP_JSON}"
-  echo "    Template: ${TEMPLATE_MCP}"
-  if [[ ! -f "${MCP_JSON}" ]]; then
-    cp "${TEMPLATE_MCP}" "${MCP_JSON}"
-    echo "    Wrote new ${MCP_JSON} from template (uses 'uvx' on PATH)."
-  else
-    echo "    File exists — merge the tree_sitter block from templates/mcp.json manually."
-    echo "    Prefer \"command\": \"uvx\" (not a machine-specific absolute path)."
-  fi
+  echo "    [warn] launcher missing at ${CODETREE_LAUNCHER} — re-run codetree-csharp/install-codetree.sh"
 fi
 
 echo
 echo "Done. Restart Cursor (or reload MCP) so arch-review can see tree_sitter."
 echo "Invoke: /implement-with-caution  |  /arch-review"
+echo "C# codetree docs: codetree-csharp/README.md"
